@@ -1,0 +1,312 @@
+= SvnWc::RepoAccess
+
+Operate on the working copy of a (remote) Subversion (svn) repository.
+
+
+== VERSION:
+
+Version 0.0.1
+
+
+== SYNOPSIS:
+ruby code
+
+    require 'svn_wc'
+    
+    # assumes a previous initial checkout
+    svn_wc = SvnWc::RepoAccess.new
+    
+    svn_wc.set_conf 'svn_wc_conf.yaml'
+    
+    # checkout, needed first time only, 
+    # 'true',  force overwrite of working copy directory path
+    #svn_wc.do_checkout true
+    
+    file = Tempfile.new('test_', svn_wc.svn_repo_working_copy).path
+    begin
+      svn_wc.add file
+      puts "svn Added file: #{file}"
+      rev = svn_wc.commit file
+      raise 'commit failed' unless rev >= 1
+      puts "svn committed file: #{file}, revision #{rev}"
+      svn_wc.delete file
+      # commit our delete
+      rev = svn_wc.commit file
+      puts "svn deleted file: #{file}, revision #{rev}"
+      raise 'commit failed' unless rev >= 1
+    rescue SvnWc::RepoAccessError, Exception => e
+      raise e.message
+    end
+
+
+== DESCRIPTION:
+
+This library is designed to operate on a working copy (on the local file system) of a remote Subversion repository.
+
+Currently, it provides very basic svn functions (see FEATURES) driven programmatically.
+It uses the Subversion Ruby Bindings to utilize/expose their functionality in a simplified way.
+
+It does not do any sort of repository administration type operations, just working directory repository management.
+
+
+== FEATURES:
+
+* Programatic access to the following:
+
+* Current supported operations
+  - open
+  - checkout/co
+  - list/ls
+  - update/up
+  - commit/ci
+  - status/stat
+  - diff
+  - info
+  - add
+  - revert
+  - delete
+  - svn+ssh is our primary connection use case, however can connect to, and operate on a (local) file:/// URI as well
+
+
+== REQUIREMENTS:
+
+* Requires that the Subversion (SWIG) Ruby Bindings are installed. 
+    (which could be as easy as)
+    Linux
+    Redhat and Fedora: yum install subversion-ruby
+    Ubuntu and Debian: apt-get install libsvn-ruby
+    OS X
+    sudo port install subversion-rubybindings
+    Windows
+    unknown,...
+
+* Ruby 1.8.6 (not tested with previous, or later versions, should work anywhere the ruby bindings are installed)
+
+== INSTALL:
+
+This library is intended to be installed as a Gem. (hosted on gemcutter.org)
+ ($ gem source -a http://gemcutter.org - no longer needed)
+
+  $ gem install svn_wc
+
+
+== OVERVIEW:
+
+This library was written to be the back end for a web app GUI front end. (Currently in progress)
+
+This serverfault post describes what I was looking for and what I am trying to satisfy with the (Front End) Application:
+
+    "I want a web interface to manage a WORKING COPY of a repository (NOT the repository itself). 
+    There are lots of already made tools to manage the repository, but I also have not found a 
+    single one to manage a remote working copy.  I need a user-friendly interface to perform stuff like:
+    "svn status", "svn info", "svn commit", "svn update", "svn revert",
+    "svn add", "svn delete"  and "svn diff"... upon a WORKING COPY which resides
+    in a remote host.  (I'm not interested in the repository, I'm interested in the WORKING COPY
+    management.)
+    I don't want to do SSH login and perform these commands. I want to enable
+    not-advanced users to do some stuff in the hosted working copy, using a
+    web interface,...
+
+* {serverfault link}[http://serverfault.com/questions/52532/svn-web-interface/67788#67788]
+
+== USAGE:
+
+Provide the svn connection info upon initializaion. 
+(One can also provide the path to a conf file. See 'svn_wc_conf.yaml')
+
+ruby code
+    require 'svn_wc'
+
+    yconf = Hash.new
+    yconf['svn_user']              = 'test_user'
+    yconf['svn_pass']              = 'test_pass'
+    yconf['svn_repo_master']       = 'svn+ssh://www.example.com/svn_repository'
+    yconf['svn_repo_working_copy'] = '/opt/svn_repo'
+
+    # 'do_checkout' is only needed until the local repository exists. (i.e. usually first time run only)
+    # 'force' will plow over anything that may exist at the path.
+    # i.e. if you ask for a do_checkout without force and the local repo exists, the call will fail
+
+    svn = SvnWc::RepoAccess.new(YAML::dump(yconf), do_checkout=true, force=true)
+
+    puts svn.svn_repo_master       # 'svn+ssh://www.example.com/svn_repository'
+    puts svn.svn_user              # 'test_user'
+    puts svn.svn_pass              # 'test_pass'
+    puts svn.svn_repo_working_copy # '/opt/svn_repo'
+
+    info = svn.info                # another way
+    puts info[:root_url]           # 'svn+ssh://www.example.com/svn_repository'
+
+    file = Tempfile.new('tmp', svn.svn_repo_working_copy).path
+    begin
+      svn.info(file)
+    # SvnWc::RepoAccess' generic exeception class (the only one, raised for all exceptions)
+    rescue SvnWc::RepoAccessError => e
+      puts e.message.match(/is not under version control/)
+    end
+
+    svn.add file
+
+    puts svn.commit file               # returns the revision number of the commit
+
+    puts svn.status file               # ' ' empty string, file is current
+
+    File.open(file, 'a') {|f| f.write('adding this to file.')}
+
+    puts svn.status(file)[0][:status]  # 'M' (modified)
+    # or, whole repo, multiple entries
+    svn_wc.status.each do |entries|
+      puts "#{entries[:status]}\t#{entries[:path]}"
+    end
+
+    puts svn.info(file)[:rev]          # current revision of file
+    svn_wc.info(file).each_key do |entries|
+      puts entries[:rev]
+      puts entries[:last_changed_author]
+      puts entries[:last_changed_rev]
+    end
+
+    puts svn.diff(file)                # =~ 'adding this to file.'
+
+    svn.revert file
+    svn.commit file                    # -1 i.e commit failed, file is current
+
+    svn.delete file
+    svn.commit file                    # must commit our delete
+
+    (In general, the above operations also accept a list (array) in place of a single file)
+
+
+    See test/* for more examples.
+
+
+== DIAGNOSTICS
+
+* An exception such as 
+    SvnWc::RepoAccessError  => 
+    'Add Failed: /tmp/buildd/subversion-1.6.3dfsg/subversion/libsvn_wc/lock.c:572:
+    Svn::Error::WcNotDirectory: '/path/to/repository' is not a working copy (RuntimeError)'
+
+  means there is no working directory where you have specified there is one,
+  you need to do a 'do_checkout'
+  i.e.  svn = SvnWc::RepoAccess.new('conf.yaml', do_checkout=true, force=true)
+
+* All the exceptions received using this module should be SvnWc::RepoAccessError 
+  which produce a (hopefully helpful) message, which is usually just the underlying 
+  exception returned from the Ruby SWIG library
+
+
+== CONFIGURATION AND ENVIRONMENT:
+
+* In order to make use of this module, one must provide connection information for svn
+
+  One can provide this as a hash at Runtime, or as a configuration file:
+
+   # conf file (YAML)
+   $ cat svnwc_conf.yaml 
+   # svn connection info
+   #svn_repo_master       : file:///tmp/svnrepo
+   svn_repo_master        : svn+ssh://example.com/opt/svnrepo
+   svn_repo_working_copy  : /usr/local/svn/repo_root
+   svn_user               : svn_test_user
+   svn_pass               : svn_test_pass
+   svn_repo_config_path   : /opt/config
+
+   # conf info
+   yconf = Hash.new
+   yconf['svn_user']              = 'test_user'
+   yconf['svn_pass']              = 'test_pass'
+   yconf['svn_repo_master']       = 'svn+ssh://www.example.com/svn_repository'
+   yconf['svn_repo_working_copy'] = '/opt/svn_repo'
+
+   svn = SvnWc::RepoAccess.new YAML::dump(yconf)
+
+* This library should work anywhere that the 'subversion-rubybindings' are installed
+  (.*NIX systems,...)
+
+
+== DEPENDENCIES:
+
+  require 'yaml'
+  require 'pathname'
+  require 'find'
+  require 'svn/core'
+  require 'svn/client'
+  require 'svn/wc'
+  require 'svn/repos'
+  require 'svn/info'
+  require 'svn/error'
+
+
+== INCOMPATIBILITIES:
+
+none known of
+
+
+== BUGS AND LIMITATIONS:
+
+This library currently provides only very basic svn operations, more work is
+needed if more functionality is desired. i.e. propset/propget, specific
+revisions operations, etc
+
+
+== SUPPORT:
+
+ri 'svn_wc'
+
+* {svn_wc general page}[http://www.dwright.us/misc/svn_wc]
+
+
+== CHANGELOG:
+
+See the ChangeLog file for details.
+
+
+== LICENSE AND COPYRIGHT:
+
+Copyright 2009 David Wright (david_v_wright@yahoo.com), all rights reserved.
+
+
+SvnWc::RepoAccess 0.1.0 is released under the LGPL license.
+
+
+== AUTHOR:
+
+Author:: {David Wright}[http://www.dwright.us/] <david_v_wright@yahoo.com>
+
+
+=== KEYWORDS:
+
+* Ruby (SWIG) SVN bindings, ruby+svn, ruby, subversion, svn, rubysvn, Subversion extensions in Ruby 
+
+
+== ACKNOWLEDGEMENTS:
+
+*  Much of this code was guided from reading the {SVN Ruby Bindings unit tests}[https://svn.collab.net/repos/svn/trunk/subversion/bindings/swig/ruby/test/]
+
+* {Doxygen Docs}[http://svn.collab.net/svn-doxygen/search.php?query=svn_wc_entry]
+  Ruby          -> Svn::Wc::Entry 
+  Doxygen Docs  -> svn_wc_entry
+
+* The Doxyogen Modules {docs}[http://svn.collab.net/svn-doxygen/modules.html]
+
+* Tim Coulter did some work with the {Ruby bindings as well}[http://www.oneofthewolves.com/svn_repos/svn_repos.rb]
+
+* "Perl Best Practices" (Conway), module documentation guidelines.
+
+
+=== ERRATA:
+
+* There is no Ruby specific documentation on the Ruby Bindings SWIG library, there are the Doxygen docs only.
+
+* Explanation/Intention
+    My use case scenario is a svn working copy on the local file system
+    communicating with a remote SVN repository, as such, I can not make use of any
+    of the 'Svn::Fs' module functionality, which is unfortunate.  Mainly, I rely
+    on the 'Svn::wc' module.
+    
+    My aim was to make this work similarly to what I'm used to in the CLI
+    version, as far as commands and the responses to commands.
+    
+    Hopefully, this library, or at least some of the code is useful to someone.
+

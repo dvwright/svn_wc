@@ -1,0 +1,8 @@
+ChangeLog
+LICENSE
+Manifest
+README
+svn_wc_conf.yaml
+svn_wc.gemspec
+lib/svn_wc.rb
+test/svn_wc_test.rb

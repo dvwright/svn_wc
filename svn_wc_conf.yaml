@@ -1,0 +1,7 @@
+# svn connection info
+#svn_repo_master        : svn+ssh://127.0.0.1/opt/svnrepo/
+svn_repo_master        : file:///tmp/svnrepo
+svn_repo_working_copy  : /home/svn_repo
+svn_user               : svn_test_user
+svn_pass               : svn_test_pass
+svn_repo_config_path   : /home/svn_repo/config
