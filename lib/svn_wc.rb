@@ -146,6 +146,9 @@ module SvnWc
     attr_reader :ctx, :repos
 
     def do_checkout(force=false)
+      if @svn_repo_working_copy.nil? 
+        raise RepoAccessError, 'conf file not loaded! - Fatal Error' 
+      end
       ## do checkout if not exists at specified local path
       if File.directory? @svn_repo_working_copy and not force
         raise RepoAccessError, 'target local directory  ' << \
