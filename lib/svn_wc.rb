@@ -24,6 +24,17 @@ require 'svn/repos'
 require 'svn/info'
 require 'svn/error'
 
+#require 'svn/client' 
+#require 'svn/delta'
+#require 'svn/info'
+#require 'svn/repos'
+#require 'svn/wc'
+#require 'svn/core'
+#require 'svn/error'
+#require 'svn/fs'
+#require 'svn/ra'
+#require 'svn/util'
+
 # = SvnWc::RepoAccess
 
 # This module is designed to operate on a working copy (on the local filesystem)
@@ -110,6 +121,18 @@ require 'svn/error'
 #     #assert(wc_status.entry.normal?)
 #     #ctx.prop_set(Svn::Core::PROP_IGNORE, file2, dir_path)
 #++
+#module Svn
+#  class Error
+#    #WC_NOT_DIRECTORY  # 1.4.2
+#    class WcNotDirectory # 1.6.6
+#      raise StandardError.new(
+#    #WC_NOT_DIRECTORY  # 1.4.2
+#    end
+#    class AuthnNoProvider
+#      raise StandardError
+#    end
+#  end
+#end
 
 module SvnWc
 
@@ -192,9 +215,10 @@ module SvnWc
         svn_session() { |ctx| 
            ctx.checkout(@svn_repo_master, @svn_repo_working_copy) 
         }
-      rescue Svn::Error::RaLocalReposOpenFailed,
-             Svn::Error::FsAlreadyExists,
-             Exception => e
+      #rescue Svn::Error::RaLocalReposOpenFailed,
+      #       Svn::Error::FsAlreadyExists,
+      #       Exception => e
+      rescue Exception => e
         raise RepoAccessError, e.message
       end
     end
@@ -245,10 +269,11 @@ module SvnWc
           files.each { |ef|
              svn.add(ef, true)
           }
-        rescue Svn::Error::ENTRY_EXISTS, 
-               Svn::Error::AuthnNoProvider,
-               Svn::Error::WcNotDirectory,
-               Svn::Error::SvnError => e
+        #rescue Svn::Error::ENTRY_EXISTS, 
+        #       Svn::Error::AuthnNoProvider,
+        #       #Svn::Error::WcNotDirectory,
+        #       Svn::Error::SvnError => e
+        rescue Exception => e
           raise RepoAccessError, "Add Failed: #{e.message}"
         end
       end
@@ -267,10 +292,11 @@ module SvnWc
       svn_session() do |svn|
         begin
           svn.delete(files)
-        rescue Svn::Error::AuthnNoProvider,
-               Svn::Error::WcNotDirectory,
-               Svn::Error::ClientModified,
-               Svn::Error::SvnError => e
+        #rescue Svn::Error::AuthnNoProvider,
+        #       #Svn::Error::WcNotDirectory,
+        #       Svn::Error::ClientModified,
+        #       Svn::Error::SvnError => e
+        rescue Exception => e
           raise RepoAccessError, "Delete Failed: #{e.message}"
         end
       end
@@ -296,10 +322,12 @@ module SvnWc
       svn_session(msg) do |svn|
         begin
           rev = svn.commit(files).revision
-        rescue Svn::Error::WcNotDirectory,
-               Svn::Error::AuthnNoProvider,
-               Svn::Error::IllegalTarget,
-               Svn::Error::EntryNotFound => e
+        #rescue Svn::Error::AuthnNoProvider,
+        #       #Svn::Error::WcNotDirectory,
+        #       Svn::Error::IllegalTarget,
+        #       #Svn::Error::EntryNotFound => e
+        #       Exception => e
+        rescue Exception => e
           raise RepoAccessError, "Commit Failed: #{e.message}"
         end
       end
@@ -352,9 +380,12 @@ module SvnWc
         begin
           #p svn.status paths
           rev = svn.update(paths, nil, 'infinity')
-        rescue Svn::Error::WcNotDirectory,
-               Svn::Error::AuthnNoProvider, #Svn::Error::FS_NO_SUCH_REVISION,
-               Svn::Error::EntryNotFound => e
+        #rescue Svn::Error::AuthnNoProvider, 
+        #       #Svn::Error::FS_NO_SUCH_REVISION,
+        #       #Svn::Error::WcNotDirectory,
+        #       #Svn::Error::EntryNotFound => e
+        #       Exception => e
+        rescue Exception => e
           raise RepoAccessError, "Update Failed: #{e.message}"
         end
       end
@@ -442,8 +473,9 @@ module SvnWc
           ) do |path, status|
             infos << [path, status]
           end
-        rescue Svn::Error::WcNotDirectory,
-                RuntimeError => svn_err
+        rescue RuntimeError,
+                #Svn::Error::WcNotDirectory,
+                Exception => svn_err
           raise RepoAccessError, "status check Failed: #{svn_err}"
         end
       end
@@ -501,10 +533,12 @@ module SvnWc
             f_rec[:last_changed_rev] = dirent.created_rev
             paths.push f_rec
           end
-        rescue Svn::Error::WcNotDirectory,
-               Svn::Error::AuthnNoProvider,
-               Svn::Error::FS_NO_SUCH_REVISION,
-               Svn::Error::EntryNotFound => e
+        #rescue Svn::Error::AuthnNoProvider,
+        #       #Svn::Error::WcNotDirectory,
+        #       Svn::Error::FS_NO_SUCH_REVISION,
+        #       #Svn::Error::EntryNotFound => e
+        #       Exception => e
+        rescue Exception => e
           raise RepoAccessError, "List Failed: #{e.message}"
         end
       end
@@ -685,34 +719,38 @@ module SvnWc
           r_info[:last_changed_rev]  = type.last_changed_rev
           r_info[:last_changed_date] = type.last_changed_date
           r_info[:conflict_old]    = type.conflict_old
-          r_info[:tree_conflict]   = type.tree_conflict
+          #r_info[:tree_conflict]   = type.tree_conflict
           r_info[:repos_root_url]  = type.repos_root_url
           r_info[:repos_root_URL]  = type.repos_root_URL
           r_info[:copyfrom_rev]    = type.copyfrom_rev
           r_info[:copyfrom_url]    = type.copyfrom_url
-          r_info[:working_size]    = type.working_size
+          #r_info[:working_size]    = type.working_size
           r_info[:conflict_wrk]    = type.conflict_wrk
           r_info[:conflict_new]    = type.conflict_new
           r_info[:has_wc_info]     = type.has_wc_info
           r_info[:repos_UUID]      = type.repos_UUID
-          r_info[:changelist]      = type.changelist
+          #r_info[:changelist]      = type.changelist
           r_info[:prop_time]       = type.prop_time
           r_info[:text_time]       = type.text_time
           r_info[:checksum]        = type.checksum
           r_info[:prejfile]        = type.prejfile
           r_info[:schedule]        = type.schedule
           r_info[:taguri]          = type.taguri
-          r_info[:depth]           = type.depth
+          #r_info[:depth]           = type.depth
           r_info[:lock]            = type.lock
-          r_info[:size]            = type.size
+          #r_info[:size]            = type.size
           r_info[:url]             = type.url
           r_info[:dup]             = type.dup
           r_info[:URL]             = type.URL
           r_info[:rev]             = type.rev
         end
-      rescue Svn::Error::EntryNotFound,
-             Svn::Error::RaIllegalUrl,
-             Svn::Error::WcNotDirectory => e
+      #rescue Svn::Error::WcNotDirectory => e
+      #       #Svn::Error::RaIllegalUrl,
+      #       #Svn::Error::EntryNotFound,
+      #       #Svn::Error::RaIllegalUrl,
+      #       #Svn::Error::WC_NOT_DIRECTORY
+      #       #Svn::Error::WcNotDirectory => e
+      rescue Exception => e
         raise RepoAccessError, "cant get info: #{e.message}"
       end
       r_info
@@ -779,7 +817,8 @@ module SvnWc
       svn_session() do |svn|
         begin
           svn.diff([], file, rev, file, "WORKING", out_file.path, err_file.path)
-        rescue Svn::Error::EntryNotFound => e
+        rescue Exception => e
+               #Svn::Error::EntryNotFound => e
           raise RepoAccessError, "Diff Failed: #{e.message}"
         end
       end
