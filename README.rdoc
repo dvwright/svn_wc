@@ -5,37 +5,35 @@ Operate on the working copy of a (remote) Subversion (svn) repository.
 
 == VERSION:
 
-Version 0.0.1
+Version 0.0.2
 
 
 == SYNOPSIS:
-ruby code
 
     require 'svn_wc'
     
-    # assumes a previous initial checkout
     svn_wc = SvnWc::RepoAccess.new
     
     svn_wc.set_conf 'svn_wc_conf.yaml'
     
     # checkout, needed first time only, 
     # 'true',  force overwrite of working copy directory path
-    #svn_wc.do_checkout true
+    svn_wc.do_checkout true
     
     file = Tempfile.new('test_', svn_wc.svn_repo_working_copy).path
+
     begin
+
       svn_wc.add file
-      puts "svn Added file: #{file}"
+
       rev = svn_wc.commit file
-      raise 'commit failed' unless rev >= 1
+
       puts "svn committed file: #{file}, revision #{rev}"
-      svn_wc.delete file
-      # commit our delete
-      rev = svn_wc.commit file
-      puts "svn deleted file: #{file}, revision #{rev}"
-      raise 'commit failed' unless rev >= 1
+
     rescue SvnWc::RepoAccessError, Exception => e
+
       raise e.message
+
     end
 
 
@@ -267,7 +265,7 @@ See the ChangeLog file for details.
 Copyright 2009 David Wright (david_v_wright@yahoo.com), all rights reserved.
 
 
-SvnWc::RepoAccess 0.1.0 is released under the LGPL license.
+SvnWc::RepoAccess 0.0.2 is released under the LGPL license.
 
 
 == AUTHOR:

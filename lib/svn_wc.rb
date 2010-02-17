@@ -24,17 +24,6 @@ require 'svn/repos'
 require 'svn/info'
 require 'svn/error'
 
-#require 'svn/client' 
-#require 'svn/delta'
-#require 'svn/info'
-#require 'svn/repos'
-#require 'svn/wc'
-#require 'svn/core'
-#require 'svn/error'
-#require 'svn/fs'
-#require 'svn/ra'
-#require 'svn/util'
-
 # = SvnWc::RepoAccess
 
 # This module is designed to operate on a working copy (on the local filesystem)
@@ -141,7 +130,7 @@ module SvnWc
 
   class RepoAccess
 
-    VERSION = '0.0.1'
+    VERSION = '0.0.2'
 
     DEFAULT_CONF_FILE  = File.join(File.dirname(File.dirname(\
                                File.expand_path(__FILE__))), 'svn_wc_conf.yaml')
