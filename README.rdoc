@@ -5,7 +5,7 @@ Operate on the working copy of a (remote) Subversion (svn) repository.
 
 == VERSION:
 
-Version 0.0.2
+Version 0.0.3
 
 
 == SYNOPSIS:
@@ -265,7 +265,7 @@ See the ChangeLog file for details.
 Copyright 2009 David Wright (david_v_wright@yahoo.com), all rights reserved.
 
 
-SvnWc::RepoAccess 0.0.2 is released under the LGPL license.
+SvnWc::RepoAccess 0.0.3 is released under the LGPL license.
 
 
 == AUTHOR:

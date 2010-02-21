@@ -44,6 +44,7 @@ require 'svn/error'
 # * add
 # * revert
 # * delete
+# * propset (ignore only)
 # * svn+ssh is our primary connection use case, however can connect to, and operate on a (local) file:/// URI as well
 #
 # Is built on top of the SVN (SWIG) (Subversion) Ruby Bindings and requires that they be installed. 
@@ -99,29 +100,23 @@ require 'svn/error'
 # Author::      David V. Wright <david_v_wright@yahoo.com>
 # License::     LGPL License
 #
-#
 #--
 # TODO make sure args are what is expected for all methods
-# TODO props
+# TODO propset/propget, 
 #     look into:
 #     #wc_status = infos.assoc(@wc_path).last
 #     #assert(wc_status.text_normal?)
 #     #assert(wc_status.entry.dir?)
 #     #assert(wc_status.entry.normal?)
 #     #ctx.prop_set(Svn::Core::PROP_IGNORE, file2, dir_path)
+#
+# currently, propset IGNORE is enabled
+#
+# TODO/Think About Delegation: (do we want to do this?)
+#      Inherit from or mixin the svn bindings directly, so method calls
+#      not defined here explicitly can be run againt the bindings directly
+#      (i.e. begin ; send(svn ruby binding method signature) ; rescue)
 #++
-#module Svn
-#  class Error
-#    #WC_NOT_DIRECTORY  # 1.4.2
-#    class WcNotDirectory # 1.6.6
-#      raise StandardError.new(
-#    #WC_NOT_DIRECTORY  # 1.4.2
-#    end
-#    class AuthnNoProvider
-#      raise StandardError
-#    end
-#  end
-#end
 
 module SvnWc
 
@@ -130,7 +125,7 @@ module SvnWc
 
   class RepoAccess
 
-    VERSION = '0.0.2'
+    VERSION = '0.0.3'
 
     DEFAULT_CONF_FILE  = File.join(File.dirname(File.dirname(\
                                File.expand_path(__FILE__))), 'svn_wc_conf.yaml')
@@ -148,6 +143,17 @@ module SvnWc
 
       # instance var of out open repo session
       @ctx = svn_session
+    end
+
+    #
+    # 'expose the abstraction'
+    # introduce Delegation, if we don't define the method pass it on to the
+    # ruby bindings. 
+    #
+    # (yup, this is probably asking for trouble)
+    #
+    def method_missing(sym, *args, &block)
+      @ctx.send sym, *args, &block
     end
 
     #--
@@ -247,8 +253,14 @@ module SvnWc
     #
     # raises RepoAccessError if something goes wrong
     #
+    #--
+    # "svn/client.rb"  Svn::Client
+    #  def add(path, recurse=true, force=false, no_ignore=false)
+    #    Client.add3(path, recurse, force, no_ignore, self)
+    #  end
+    #++
 
-    def add(files=[])
+    def add(files=[], recurse=true, force=false, no_ignore=false)
 
       # TODO make sure args are what is expected for all methods
       raise ArgumentError, 'files is empty' unless files
@@ -256,7 +268,7 @@ module SvnWc
       svn_session() do |svn|
         begin
           files.each { |ef|
-             svn.add(ef, true)
+             svn.add(ef, recurse, force, no_ignore)
           }
         #rescue Svn::Error::ENTRY_EXISTS, 
         #       Svn::Error::AuthnNoProvider,
@@ -277,7 +289,7 @@ module SvnWc
     # raises RepoAccessError if something goes wrong
     #
 
-    def delete(files=[], recurs=nil)
+    def delete(files=[], recurs=false)
       svn_session() do |svn|
         begin
           svn.delete(files)
@@ -580,6 +592,8 @@ module SvnWc
           _collect_get_entry_info(file, adm, show, verbose)
         end
       end
+      #XXX do we want nil or empty on no entries, choosing empty for now
+      #@entry_list unless @entry_list.empty?
       @entry_list
     end
 
@@ -611,7 +625,7 @@ module SvnWc
     def _collect_get_entry_info(abs_path_file, adm, show, verbose=false)#:nodoc:
       @status_info = {}
       _get_entry_info(abs_path_file, adm, show, verbose)
-      @entry_list.push @status_info
+      @entry_list.push @status_info unless @status_info.empty?
     end
     private :_collect_get_entry_info
 
@@ -633,14 +647,15 @@ module SvnWc
       entry_repo_location = abs_path_file[(wc.length+1)..-1]
 
       entry = Svn::Wc::Entry.new(abs_path_file, adm, show)
-      @status_info[:entry_name] = entry_repo_location
+      #@status_info[:entry_name] = entry_repo_location
 
       status = adm.status(abs_path_file)
       return if status.entry.nil?
 
-      @status_info[:status]   = status_codes(status.text_status)
-      @status_info[:repo_rev] = status.entry.revision
-      @status_info[:kind]     = status.entry.kind
+      @status_info[:entry_name] = entry_repo_location
+      @status_info[:status]     = status_codes(status.text_status)
+      @status_info[:repo_rev]   = status.entry.revision
+      @status_info[:kind]       = status.entry.kind
 
       if @status_info[:kind] == 2
         # remove the repo root abs path, give dirs relative to repo root
@@ -812,6 +827,23 @@ module SvnWc
         end
       end
       out_file.readlines
+    end
+
+    # currently supports type='ignore' only
+    #--
+    # TODO support other propset's ; also propget
+    #++
+    def propset(type, file, dir_path)
+      raise RepoAccessError, '"ignore" is only supported propset' \
+             unless type == 'ignore'
+
+      svn_session() do |svn|
+        begin
+          svn.propset(Svn::Core::PROP_IGNORE, file, dir_path)
+        rescue Exception => e #Svn::Error::EntryNotFound => e
+          raise RepoAccessError, "Propset (Ignore) Failed: #{e.message}"
+        end
+      end
     end
 
     # svn session set up

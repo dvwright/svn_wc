@@ -1,7 +1,7 @@
 Gem::Specification.new do |s|
   s.name = %q{svn_wc}
-  s.version = "0.0.2"
-  s.date = %q{2010-02-17}
+  s.version = "0.0.3"
+  s.date = %q{2010-02-20}
   s.authors = ["David Wright"]
   s.email = %q{david_v_wright@yahoo.com}
   s.summary = %q{svn_wc operates on a working copy (on the local filesystem) of a remote Subversion repository.}

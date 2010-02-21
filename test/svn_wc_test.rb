@@ -11,9 +11,6 @@
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # Lesser General Public License for more details.
-#$LOAD_PATH.unshift '..'
-#$LOAD_PATH.unshift File.join('..', 'lib')
-#$LOAD_PATH.unshift File.join('lib')
 
 require 'yaml'
 require File.join(File.dirname(__FILE__), "..", "lib", 'svn_wc')
@@ -34,6 +31,8 @@ require 'pp'
 # svn status
 # svn delete
 # svn diff
+# propset ignore
+# log
 
 # NOTE
 # svn+ssh is our primary use case, however
@@ -409,27 +408,33 @@ class TestSvnWc < Test::Unit::TestCase
     assert_equal Array.new, svn.diff(f)
   end
 
-  ## TODO
+  ## TODO not sure if we actually want this
   #def test_add_does_recursive_nested_dirs
-  #  svn = SvnWc::RepoAccess.new(nil, true)
-
-  #  # add 1 new file in nested heirerarcy
-  #  # TODO ability to add recursive nested dirs
-  #  FileUtils.mkdir_p @conf['svn_repo_working_copy'] + "/d1/d2/d3"
-  #  nested = @conf['svn_repo_working_copy'] +
-  #                    "/d1/d2/d3/test_#{Time.now.usec.to_s}.txt"
+  #  svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
+  #  repo_wc = @conf['svn_repo_working_copy']
+  #  FileUtils.mkdir_p File.join(repo_wc, 'd1','d2','d3')
+  #  nested = File.join(repo_wc, 'd1','d2','d3',"test_#{Time.now.usec.to_s}.txt")
   #  FileUtils.touch nested
+  #  # TODO ability to add recursive nested dirs
   #  svn.add nested
+ 
+  #  ## add 1 new file in nested heirerarcy
+  #  ## TODO ability to add recursive nested dirs
+  #  #FileUtils.mkdir_p @conf['svn_repo_working_copy'] + "/d1/d2/d3"
+  #  #nested = @conf['svn_repo_working_copy'] +
+  #  #                  "/d1/d2/d3/test_#{Time.now.usec.to_s}.txt"
+  #  #FileUtils.touch nested
+  #  #svn.add nested
 
-  #  svn.status.each { |ef|
-  #    next unless ef[:entry_name].match /test_.*/
-  #    assert_equal 'A', ef[:status]
-  #    assert_equal nested, File.join(@conf['svn_repo_working_copy'], ef[:entry_name])
-  #  }
-  #  svn.revert
-  #  assert_equal 1, svn.status.length
-  #  assert_equal File.basename(@conf['svn_repo_working_copy']),
-  #                     svn.status[0][:entry_name]
+  #  #svn.status.each { |ef|
+  #  #  next unless ef[:entry_name].match /test_.*/
+  #  #  assert_equal 'A', ef[:status]
+  #  #  assert_equal nested, File.join(@conf['svn_repo_working_copy'], ef[:entry_name])
+  #  #}
+  #  #svn.revert
+  #  #assert_equal 1, svn.status.length
+  #  #assert_equal File.basename(@conf['svn_repo_working_copy']),
+  #  #                   svn.status[0][:entry_name]
   #end
 
   def test_update_acts_on_whole_repo_by_default_knows_a_m_d
@@ -474,25 +479,20 @@ class TestSvnWc < Test::Unit::TestCase
 
   end
 
-  #def test_update_reports_collision
-  #  svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
+  def test_add_exception_on_already_added_file
+    svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
+    this_wc_rev = 0
+    assert_equal [this_wc_rev, []], svn.update
 
-  #  assert_equal '', svn.update
+    rev, f_name = check_out_new_working_copy_add_and_commit_new_entries
 
-  #  rev, f_name = check_out_new_working_copy_add_and_commit_new_entries
+    assert_equal [rev, ["A\t#{File.basename(f_name.to_s)}"]], svn.update
 
-  #  assert_equal " #{f_name}", svn.update
-
-  #  f = new_unique_file_at_path
-  #  modify_file_and_commit_into_another_working_repo(f)
-  #  File.open(f, 'a') {|fl| fl.write('adding text to file.')}
-  #  # XXX no update done, so this file should clash with
-  #  # what is already in the repo
-  #  start_rev = svn.commit f
-  #  #p svn.status(f)
-  #  #assert_equal 'M', svn.status(f)[0][:status]
-  #  #assert_equal start_rev, svn.info(f)[:rev] 
-  #end
+    (rev, f) = modify_file_and_commit_into_another_working_repo
+    File.open(f, 'w') {|fl| fl.write('adding text to file.')}
+    #already under version control
+    assert_raise(SvnWc::RepoAccessError) { svn.add f }
+  end
 
   def test_list_recursive
     FileUtils.rm_rf @conf['svn_repo_working_copy']
@@ -603,19 +603,55 @@ class TestSvnWc < Test::Unit::TestCase
     assert fails
   end
 
-  #def test_update
-  # svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true)
-  #for this one, we will have to create another working copy, modify a file
-  # and commit from there, then to an update in this working copy
-  #end
+  def test_propset_ignore_file
+    svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
 
-  #def test_update_a_locally_modified_file_raises_exception
-  #for this one, we will have to create another working copy, modify a file
-  # and commit from there, then to an update in this working copy
-  #end
+    repo_wc = @conf['svn_repo_working_copy']
 
-  #def test_delete
-  #end
+    dir_ent = Dir.mktmpdir('P', repo_wc)
+    file = 'file_to_ignore.txt'
+ 
+    svn.add dir_ent, recurse=false
+    svn.propset('ignore', file, dir_ent)
+    svn.commit repo_wc
+
+    file = File.join dir_ent, file
+    # create file we have already ignored, above
+    File.open(file, "w") {|f| f.print('testing propset ignore file.')}
+
+    file2 = new_unique_file_at_path dir_ent
+
+    svn.add dir_ent, recurse=true, force=true
+    svn.commit repo_wc
+
+    assert_raise(SvnWc::RepoAccessError) { svn.info file }
+    assert_equal File.basename(svn.list_entries[0][:entry_name]), 
+                 File.basename(file2)
+    assert_equal svn.list_entries.size, 1
+    assert_nil svn.list_entries[1]
+
+  end
+
+  # TODO
+  # from client.rb
+  #def log(paths, start_rev, end_rev, limit,
+  #        discover_changed_paths, strict_node_history,
+  #        peg_rev=nil)
+  def test_commit_with_message
+    log_mess = 'added new file'
+
+    svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
+    file = new_unique_file_at_path
+    svn.add file
+    o_rev = svn.commit file, log_mess
+    assert o_rev >= 1
+    args = [file, 0, "HEAD", 0, true, nil]
+    svn.log(*args) do |changed_paths, rev, author, date, message|
+      assert_equal rev, o_rev
+      assert_equal message, log_mess
+    end
+  end
+
 
   #
   # methods used by the tests below here
@@ -662,14 +698,14 @@ class TestSvnWc < Test::Unit::TestCase
     return rev, ff
   end
 
-  def modify_file_and_commit_into_another_working_repo(f)
-    raise ArgumentError, "path arg is empty" unless f and not f.empty?
+  def modify_file_and_commit_into_another_working_repo
     svn = _working_copy_repo_at_path
-    File.open(f, 'a') {|fl| fl.write('adding this to file.')}
+    f = new_unique_file_at_path(svn.svn_repo_working_copy)
+    File.open(f, 'w') {|fl| fl.write('this is the original content of file.')}
+    svn.add f
     rev = svn.commit f
-    raise 'cant get status' unless ' ' == svn.status(f)[0][:status]
     raise 'cant get revision' unless rev == svn.info(f)[:rev]
-    rev
+    return rev, f
   end
 
 end
