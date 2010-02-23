@@ -866,15 +866,17 @@ module SvnWc
     #--
     # TODO support other propset's ; also propget
     #++
-    def propset(type, file, dir_path)
+    def propset(type, files, dir_path=self.svn_repo_working_copy)
       raise RepoAccessError, '"ignore" is only supported propset' \
              unless type == 'ignore'
 
       svn_session() do |svn|
-        begin
-          svn.propset(Svn::Core::PROP_IGNORE, file, dir_path)
-        rescue Exception => e #Svn::Error::EntryNotFound => e
-          raise RepoAccessError, "Propset (Ignore) Failed: #{e.message}"
+        files.each do |ef|
+          begin
+            svn.propset(Svn::Core::PROP_IGNORE, ef, dir_path)
+          rescue Exception => e #Svn::Error::EntryNotFound => e
+            raise RepoAccessError, "Propset (Ignore) Failed: #{e.message}"
+          end
         end
       end
     end
