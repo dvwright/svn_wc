@@ -713,12 +713,12 @@ module SvnWc
       @status_info[:conflict_new]   = s.conflict_new
       @status_info[:lock_comment]   = s.lock_comment
       @status_info[:copyfrom_rev]   = s.copyfrom_rev
-      @status_info[:working_size]   = s.working_size
+      #@status_info[:working_size]   = s.working_size
       @status_info[:conflict_wrk]   = s.conflict_wrk
       @status_info[:cmt_author]     = s.cmt_author
-      @status_info[:changelist]     = s.changelist
+      #@status_info[:changelist]     = s.changelist
       @status_info[:lock_token]     = s.lock_token
-      @status_info[:keep_local]     = s.keep_local
+      #@status_info[:keep_local]     = s.keep_local
       @status_info[:lock_owner]     = s.lock_owner
       @status_info[:prop_time]      = s.prop_time
       @status_info[:has_props]      = s.has_props
@@ -736,7 +736,7 @@ module SvnWc
       @status_info[:is_add]         = s.add?
       @status_info[:is_dir]         = s.dir?
       @status_info[:repos]          = s.repos
-      @status_info[:depth]          = s.depth
+      #@status_info[:depth]          = s.depth
       @status_info[:uuid]           = s.uuid
       @status_info[:url]            = s.url
     end
