@@ -164,7 +164,8 @@ module SvnWc
     # TODO revist these
     #++
     attr_accessor :svn_user, :svn_pass, :svn_repo_master, \
-                  :svn_repo_working_copy, :cur_file
+                  :svn_repo_working_copy, :cur_file,
+                  :svn_repo_config_path, :svn_repo_config_file
     attr_reader :ctx, :repos
 
     #
@@ -172,13 +173,13 @@ module SvnWc
     #
     def set_conf(conf)
       begin
-      conf = load_conf(conf)
-      @svn_user              = conf['svn_user']
-      @svn_pass              = conf['svn_pass']
-      @svn_repo_master       = conf['svn_repo_master']
-      @svn_repo_working_copy = conf['svn_repo_working_copy']
-      @config_path           = conf['svn_repo_config_path']
-      Svn::Core::Config.ensure(@config_path)
+        conf = load_conf(conf)
+        @svn_user              = conf['svn_user']
+        @svn_pass              = conf['svn_pass']
+        @svn_repo_master       = conf['svn_repo_master']
+        @svn_repo_working_copy = conf['svn_repo_working_copy']
+        @svn_repo_config_path  = conf['svn_repo_config_path']
+        Svn::Core::Config.ensure(@svn_repo_config_path)
       rescue Exception => e
         raise RepoAccessError, 'errors loading conf file'
       end
@@ -248,6 +249,7 @@ module SvnWc
       if cnf.nil? or cnf.empty? 
         raise RepoAccessError, 'No config file provided!'
       elsif cnf and cnf.class == String and File.exists? cnf
+        @svn_repo_config_file = cnf
         cnf = IO.read(cnf)
       end
 
@@ -918,7 +920,7 @@ module SvnWc
     end
 
     def setup_auth_baton(auth_baton) # :nodoc:
-      auth_baton[Svn::Core::AUTH_PARAM_CONFIG_DIR] = @config_path
+      auth_baton[Svn::Core::AUTH_PARAM_CONFIG_DIR] = @svn_repo_config_path
       auth_baton[Svn::Core::AUTH_PARAM_DEFAULT_USERNAME] = @svn_user
     end
 
