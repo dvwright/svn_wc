@@ -1,3 +1,6 @@
+version 0.0.4
+* added :svn_repo_config_file accessor (rw)
+
 version 0.0.3
 * add all possible arg options to 'add' (from client.rb)
 * enable propset (ignore) only
