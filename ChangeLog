@@ -1,3 +1,6 @@
+version 0.0.5
+* code refactoring 
+
 version 0.0.4
 * added :svn_repo_config_file accessor (rw)
 

@@ -154,7 +154,9 @@ module SvnWc
     # introduce Delegation, if we don't define the method pass it on to the
     # ruby bindings. 
     #
+    #--
     # (yup, this is probably asking for trouble)
+    #++
     #
     def method_missing(sym, *args, &block)
       @ctx.send sym, *args, &block
@@ -163,9 +165,10 @@ module SvnWc
     #--
     # TODO revist these
     #++
-    attr_accessor :svn_user, :svn_pass, :svn_repo_master, \
+    attr_accessor :svn_user, :svn_pass, :svn_repo_master,
                   :svn_repo_working_copy, :cur_file,
-                  :svn_repo_config_path, :svn_repo_config_file
+                  :svn_repo_config_path, :svn_repo_config_file,
+                  :force_checkout
     attr_reader :ctx, :repos
 
     #
@@ -176,6 +179,7 @@ module SvnWc
         conf = load_conf(conf)
         @svn_user              = conf['svn_user']
         @svn_pass              = conf['svn_pass']
+        @force_checkout        = conf['force_checkout']
         @svn_repo_master       = conf['svn_repo_master']
         @svn_repo_working_copy = conf['svn_repo_working_copy']
         @svn_repo_config_path  = conf['svn_repo_config_path']
@@ -192,11 +196,12 @@ module SvnWc
       end
       ## do checkout if not exists at specified local path
 
-      if force
+      if force or @force_checkout
         begin
-          #FileUtils.rm_rf @svn_repo_working_copy
-          FileUtils.mkdir_p @svn_repo_working_copy, :force => true
-        rescue
+          FileUtils.rm_rf @svn_repo_working_copy
+          FileUtils.mkdir_p @svn_repo_working_copy
+        rescue Errno::EACCES => err
+          raise RepoAccessError, err.message
         end
       else
         if File.directory? @svn_repo_working_copy
@@ -489,8 +494,10 @@ module SvnWc
 
     def do_status(dir=self.svn_repo_working_copy, file=nil) # :nodoc:
 
+      # set default
       wc_path = Svn::Core.path_canonicalize dir if File.directory? dir
 
+      # override default if set
       wc_path = Svn::Core.path_canonicalize file \
                if (!file.nil? && File.file?(file))
 
@@ -614,19 +621,16 @@ module SvnWc
     #
 
     def list_entries(dir=self.svn_repo_working_copy, file=nil, verbose=false)
+
       @entry_list, @show, @verbose = [], true, verbose
+
       Svn::Wc::AdmAccess.open(nil, dir, false, 5) do |adm|
         @adm = adm
         if file.nil?
           #also see walk_entries (in svn bindings) has callback
           adm.read_entries.keys.sort.each { |ef|
             next unless ef.length >= 1 # why this check and not file.exists?
-            f_path = File.join(dir, ef)
-            if File.file? f_path
-              _collect_get_entry_info(f_path)
-            elsif File.directory? f_path
-              _walk_entries(f_path)
-            end
+            _collect_get_entry_info(File.join(dir, ef))
           }
         else
           _collect_get_entry_info(file)
@@ -640,22 +644,6 @@ module SvnWc
     #
     # private
     #
-    # given a dir, iterate each entry, getting detailed file entry info
-    #
-
-    def _walk_entries(f_path) #:nodoc:
-      Dir.entries(f_path).each do |de|
-        next if de == '..' or de == '.' or de == '.svn'
-        fp_path  = File.join(f_path, de)
-        _collect_get_entry_info(fp_path)
-      end
-    end
-    private :_walk_entries
-    
-
-    #
-    # private
-    #
     # _collect_get_entry_info - initialize empty class varialbe
     # @status_info to keep track of entries, push that onto
     # class variable @entry_list a hash of very useful svn info of each entry
@@ -663,9 +651,16 @@ module SvnWc
     #
 
     def _collect_get_entry_info(abs_path_file) #:nodoc:
-      @status_info = Hash.new
-      _get_entry_info(abs_path_file)
-      @entry_list.push @status_info unless @status_info.empty?
+      if File.directory?(abs_path_file)
+        Dir.entries(abs_path_file).each do |de|
+          next if de == '..' or de == '.' or de == '.svn'
+          status_info = _get_entry_info(File.join(abs_path_file, de))
+          @entry_list.push status_info if status_info and not status_info.empty?
+        end
+      else
+        status_info = _get_entry_info(abs_path_file)
+        @entry_list.push status_info if status_info and not status_info.empty?
+      end
     end
     private :_collect_get_entry_info
 
@@ -692,55 +687,34 @@ module SvnWc
       status = @adm.status(abs_path_file)
       return if status.entry.nil?
 
-      @status_info[:entry_name] = entry_repo_location
-      @status_info[:status]     = status_codes(status.text_status)
-      @status_info[:repo_rev]   = status.entry.revision
-      @status_info[:kind]       = status.entry.kind
+      status_info = Hash.new
+      status_info[:entry_name] = entry_repo_location
+      status_info[:status]     = status_codes(status.text_status)
+      status_info[:repo_rev]   = status.entry.revision
+      status_info[:kind]       = status.entry.kind
 
-      if @status_info[:kind] == 2
+      if status_info[:kind] == 2
         # remove the repo root abs path, give dirs relative to repo root
-        @status_info[:dir_name] = entry_repo_location
-        # XXX hmmm, this is a little like a goto, revisit this
-        _walk_entries(abs_path_file)
+        status_info[:dir_name] = entry_repo_location
+        _collect_get_entry_info(abs_path_file)
       end
-      return if @verbose == false
+      return status_info if @verbose == false
       # only on demand ; i.e. verbose = true
-      s = status.entry
-      @status_info[:entry_conflict]     = entry.conflicted?(abs_path_file)
-      @status_info[:lock_creation_date] = s.lock_creation_date
-      @status_info[:present_props]  = s.present_props
-      @status_info[:has_prop_mods]  = s.has_prop_mods
-      @status_info[:copyfrom_url]   = s.copyfrom_url
-      @status_info[:conflict_old]   = s.conflict_old
-      @status_info[:conflict_new]   = s.conflict_new
-      @status_info[:lock_comment]   = s.lock_comment
-      @status_info[:copyfrom_rev]   = s.copyfrom_rev
-      #@status_info[:working_size]   = s.working_size
-      @status_info[:conflict_wrk]   = s.conflict_wrk
-      @status_info[:cmt_author]     = s.cmt_author
-      #@status_info[:changelist]     = s.changelist
-      @status_info[:lock_token]     = s.lock_token
-      #@status_info[:keep_local]     = s.keep_local
-      @status_info[:lock_owner]     = s.lock_owner
-      @status_info[:prop_time]      = s.prop_time
-      @status_info[:has_props]      = s.has_props
-      @status_info[:schedule]       = s.schedule
-      @status_info[:text_time]      = s.text_time
-      @status_info[:revision]       = s.revision
-      @status_info[:checksum]       = s.checksum
-      @status_info[:cmt_date]       = s.cmt_date
-      @status_info[:prejfile]       = s.prejfile
-      @status_info[:is_file]        = s.file?
-      @status_info[:normal?]        = s.normal?
-      @status_info[:cmt_rev]        = s.cmt_rev
-      @status_info[:deleted]        = s.deleted
-      @status_info[:absent]         = s.absent
-      @status_info[:is_add]         = s.add?
-      @status_info[:is_dir]         = s.dir?
-      @status_info[:repos]          = s.repos
-      #@status_info[:depth]          = s.depth
-      @status_info[:uuid]           = s.uuid
-      @status_info[:url]            = s.url
+      status_info[:entry_conflict]     = entry.conflicted?(abs_path_file)
+      s_entry_info = %w(
+                        lock_creation_date present_props has_prop_mods
+                        copyfrom_url conflict_old conflict_new
+                        lock_comment copyfrom_rev conflict_wrk
+                        cmt_author lock_token lock_owner
+                        prop_time has_props schedule text_time revision 
+                        checksum cmt_date prejfile normal? file? add? dir?
+                        cmt_rev deleted absent repos uuid url
+                       ) # working_size changelist keep_local depth
+
+      s_entry_info.each do |each_info|
+        status_info[:"#{each_info}"] = status.entry.method(:"#{each_info}").call
+      end
+      status_info
     end
     private :_get_entry_info
 
@@ -750,38 +724,26 @@ module SvnWc
     # TODO - document all the params available from this command
     #++
     #
-    def info(file='')
-      if file and not (file.empty? or file.nil? or file.class != String)
-        wc_path = file
-      else
-        wc_path = self.svn_repo_working_copy
-      end
+    def info(file=nil)
+      wc_path = self.svn_repo_working_copy
+      wc_path = file if file and file.class == String
 
       r_info = Hash.new
+      type_info = %w(
+                     last_changed_author last_changed_rev
+                     last_changed_date conflict_old
+                     repos_root_url repos_root_URL
+                     copyfrom_rev copyfrom_url conflict_wrk 
+                     conflict_new has_wc_info repos_UUID
+                     checksum prop_time text_time prejfile
+                     schedule taguri lock rev dup url URL
+                    ) # changelist depth size tree_conflict working_size
+
       begin
         @ctx.info(wc_path) do |path, type|
-          r_info[:last_changed_author] = type.last_changed_author
-          r_info[:last_changed_rev]  = type.last_changed_rev
-          r_info[:last_changed_date] = type.last_changed_date
-          r_info[:conflict_old]    = type.conflict_old
-          #r_info[:tree_conflict]   = type.tree_conflict
-          r_info[:repos_root_url]  = type.repos_root_url
-          r_info[:repos_root_URL]  = type.repos_root_URL
-          r_info[:copyfrom_rev]    = type.copyfrom_rev
-          r_info[:copyfrom_url]    = type.copyfrom_url
-          #r_info[:working_size]    = type.working_size
-          r_info[:conflict_wrk]    = type.conflict_wrk
-          r_info[:conflict_new]    = type.conflict_new
-          r_info[:has_wc_info]     = type.has_wc_info
-          r_info[:repos_UUID]      = type.repos_UUID
-          r_info[:checksum]        = type.checksum
-          r_info[:prop_time], r_info[:text_time] = type.prop_time, type.text_time
-          r_info[:prejfile],  r_info[:schedule]  = type.prejfile, type.schedule
-          r_info[:taguri], r_info[:lock] = type.taguri, type.lock
-          r_info[:rev], r_info[:dup]     = type.rev, type.dup
-          r_info[:url], r_info[:URL]     = type.url, type.URL
-          #r_info[:changelist]  = type.changelist
-          #r_info[:depth], r_info[:size] = type.depth, type.size
+          type_info.each do |t_info|
+            r_info[:"#{t_info}"] = type.method(:"#{t_info}").call
+          end
         end
       #rescue Svn::Error::WcNotDirectory => e
       #       #Svn::Error::RaIllegalUrl,
@@ -869,7 +831,7 @@ module SvnWc
     # TODO support other propset's ; also propget
     #++
     def propset(type, files, dir_path=self.svn_repo_working_copy)
-      raise RepoAccessError, '"ignore" is only supported propset' \
+      raise RepoAccessError, 'currently, "ignore" is the only supported propset' \
              unless type == 'ignore'
 
       svn_session() do |svn|

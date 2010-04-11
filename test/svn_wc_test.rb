@@ -619,9 +619,9 @@ class TestSvnWc < Test::Unit::TestCase
 
     entries =  svn.list_entries
 
-    assert_equal File.basename(entries[1][:entry_name]), 
-                 File.basename(file)
     assert_equal File.basename(entries[0][:entry_name]), 
+                 File.basename(file)
+    assert_equal File.basename(entries[1][:entry_name]), 
                  File.basename(file2)
     assert_equal entries.size, 2
     assert_nil entries[2]
@@ -632,14 +632,14 @@ class TestSvnWc < Test::Unit::TestCase
       # bools
       assert ! info[:absent]
       assert ! info[:entry_conflict]
-      assert ! info[:is_add]
-      assert ! info[:is_dir]
+      assert ! info[:add?]
+      assert ! info[:dir?]
       assert ! info[:has_props]
       assert ! info[:deleted]
       #assert ! info[:keep_local]
       assert ! info[:has_prop_mods]
       assert   info[:normal?]
-      assert   info[:is_file]
+      assert   info[:file?]
 
       assert_nil info[:copyfrom_url]
       assert_nil info[:conflict_old]
