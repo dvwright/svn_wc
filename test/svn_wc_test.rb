@@ -671,6 +671,20 @@ class TestSvnWc < Test::Unit::TestCase
       assert_equal info[:repos], @conf['svn_repo_master']
     end
 
+    # list and list_entries report the same entry path
+    list_entries = []
+    entries.each do |info|
+      list_entries.push info[:entry_name]
+    end
+
+    entries = []
+    svn.list.each do |info|
+      next unless info[:entry].match(/\.txt$/)
+      entries.push info[:entry]
+    end
+
+    assert_equal entries, list_entries
+
   end
 
   def test_propset_ignore_file

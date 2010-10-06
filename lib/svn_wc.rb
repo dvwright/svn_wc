@@ -577,7 +577,7 @@ module SvnWc
           svn.list(wc_path, rev, verbose, depth) do |path, dirent, lock, abs_path|
             #paths.push(path.empty? ? abs_path : File.join(abs_path, path))
             f_rec = Hash.new
-            f_rec[:entry] = (path.empty? ? abs_path : File.join(abs_path, path))
+            f_rec[:entry] = path
             f_rec[:last_changed_rev] = dirent.created_rev
             paths.push f_rec
           end
