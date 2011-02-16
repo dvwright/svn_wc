@@ -1,3 +1,4 @@
+# encoding: utf-8
 # Copyright (c) 2009 David Wright
 #
 # You are free to modify and use this file under the terms of the GNU LGPL.
@@ -321,6 +322,64 @@ class TestSvnWc < Test::Unit::TestCase
     svn.delete file
     # commit our delete
     n_rev = svn.commit file
+    assert_equal rev+1, n_rev
+  end
+
+  def test_add_new_file_with_utf8_symbol_and_commit_and_delete
+    svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
+    file = new_unique_file_at_path2('£20')
+    begin
+      svn.info(file)
+      fail 'file not in svn'
+    rescue SvnWc::RepoAccessError => e
+      #cant get info: bad URI(is not URI?): 
+      assert e.message.match(/cant get info/)
+    end
+    svn.add file
+    assert_equal 'A', svn.status[0][:status]
+    assert svn.status[0][:path].match(File.basename(file))
+    rev = svn.commit file
+    assert rev >= 1
+    svn.delete file
+    assert_equal 'D', svn.status[0][:status]
+    assert svn.status[0][:path].match(File.basename(file))
+    # commit our delete
+    n_rev = svn.commit file
+    assert_equal [], svn.status
+    assert_equal rev+1, n_rev
+  end
+
+  def test_add_new_file_with_utf8_symbols_and_commit_and_delete
+    svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
+    file = new_unique_file_at_path2('£20_ß£áçkqùë_Jâçqùë')
+    begin
+      svn.info(file)
+      fail 'file not in svn'
+    rescue SvnWc::RepoAccessError => e
+      #cant get info: bad URI(is not URI?): 
+      assert e.message.match(/cant get info/)
+    end
+
+    svn.add file
+    begin
+      svn.add file
+    rescue SvnWc::RepoAccessError => e
+      assert e.message.match(/Add Failed:/)
+      assert e.message.match(/is already under version control/)
+    end
+    #assert_equal 'A', svn.status[0][:status]
+    # why '?' and not 'A'!?
+    assert_equal '?', svn.status[0][:status]
+    #assert svn.status[0][:path].match(File.basename(file))
+    #assert_equal File.basename(svn.status[0][:path]), File.basename(file)
+    rev = svn.commit file
+    assert rev >= 1
+    svn.delete file
+    assert_equal 'D', svn.status[0][:status]
+    assert svn.status[0][:path].match(File.basename(file))
+    # commit our delete
+    n_rev = svn.commit file
+    assert_equal [], svn.status
     assert_equal rev+1, n_rev
   end
 
@@ -783,6 +842,14 @@ class TestSvnWc < Test::Unit::TestCase
   def new_unique_file_at_path(wc_repo=@conf['svn_repo_working_copy'])
     #Tempfile.new('test_', wc_repo).path
     new_file_name = File.join(wc_repo, "test_#{Time.now.usec.to_s}.txt")
+    FileUtils.touch new_file_name
+    new_file_name
+  end
+ 
+  def new_unique_file_at_path2(f_name=nil, wc_repo=nil)
+    wc_repo =@conf['svn_repo_working_copy'] if wc_repo.nil?
+    #Tempfile.new('test_', wc_repo).path
+    new_file_name = File.join(wc_repo, "test_#{f_name}_#{Time.now.usec.to_s}.txt")
     FileUtils.touch new_file_name
     new_file_name
   end
