@@ -335,7 +335,8 @@ class TestSvnWc < Test::Unit::TestCase
       #cant get info: bad URI(is not URI?): 
       assert e.message.match(/cant get info/)
     end
-    svn.add file
+
+    assert_nothing_raised{svn.add file}
     assert_equal 'A', svn.status[0][:status]
     assert svn.status[0][:path].match(File.basename(file))
     rev = svn.commit file
@@ -360,13 +361,14 @@ class TestSvnWc < Test::Unit::TestCase
       assert e.message.match(/cant get info/)
     end
 
-    svn.add file
+    assert_nothing_raised{svn.add file}
+
     begin
       svn.add file
     rescue SvnWc::RepoAccessError => e
-      assert e.message.match(/Add Failed:/)
       assert e.message.match(/is already under version control/)
     end
+
     #assert_equal 'A', svn.status[0][:status]
     # why '?' and not 'A'!?
     assert_equal '?', svn.status[0][:status]
@@ -440,7 +442,55 @@ class TestSvnWc < Test::Unit::TestCase
     assert File.file?(f[3])
     assert FileUtils.rm_rf(File.dirname(f[3]))
   end
+  
+  def test_operations_on_specific_dir_not_process_others
+    svn = SvnWc::RepoAccess.new(@conf_file, true, true)
 
+    f = []
+    (1..4).each { |d|
+      wc_new_dir = File.join @conf['svn_repo_working_copy'], "dir#{d}"
+      FileUtils.mkdir wc_new_dir
+      wc_new_file = "test_#{d}.txt"
+      f[d] = File.join wc_new_dir, wc_new_file
+      FileUtils.touch f[d]
+    }
+
+    begin
+      svn.info(f[1])
+      fail 'is not under version control'
+    rescue SvnWc::RepoAccessError => e
+      assert e.message.match(/is not a working copy/)
+    end
+    #svn.add [File.dirname(f[1]), File.dirname(f[2]), File.dirname(f[4])]
+    #rev = svn.commit [File.dirname(f[1]), File.dirname(f[2]), File.dirname(f[4]), f[1], f[2], f[4]]
+    #assert rev >= 1
+    
+    assert !svn.status(File.dirname(f[2])).to_s.match(/dir1/)
+    assert svn.status(File.dirname(f[2])).to_s.match(/dir2/)
+    assert !svn.status(File.dirname(f[2])).to_s.match(/dir3/)
+    assert !svn.status(File.dirname(f[2])).to_s.match(/dir4/)
+
+    assert !svn.status(File.dirname(f[3])).to_s.match(/dir1/)
+    assert svn.status(File.dirname(f[3])).to_s.match(/dir3/)
+    assert !svn.status(File.dirname(f[3])).to_s.match(/dir2/)
+    assert !svn.status(File.dirname(f[3])).to_s.match(/dir4/)
+
+    # not it repo yet
+    assert_raise(SvnWc::RepoAccessError) { svn.list(File.dirname(f[3])) }
+    svn.add [File.dirname(f[2]), File.dirname(f[3])]
+    rev = svn.commit [File.dirname(f[2]), File.dirname(f[3]), f[2], f[3]]
+
+    # list by dir matches specific only
+    assert svn.list(File.dirname(f[3]))[1].to_s.match(/test_3.txt/)
+    assert !svn.list(File.dirname(f[3]))[1].to_s.match(/test_2.txt/)
+
+    # list matches all
+    assert svn.list.to_s.match(/test_2.txt/)
+    assert svn.list.to_s.match(/test_3.txt/)
+
+
+  end
+  
   def test_add_commit_update_file_status_revision_modify_diff_revert
     svn = SvnWc::RepoAccess.new(YAML::dump(@conf), true, true)
     f = new_unique_file_at_path
