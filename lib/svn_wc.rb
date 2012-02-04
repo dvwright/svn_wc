@@ -371,7 +371,12 @@ module SvnWc
     # alias up
     def update(paths=[])
 
-      if paths.empty? then paths = self.svn_repo_working_copy end
+      if paths.empty? 
+        paths = self.svn_repo_working_copy
+      else
+        @limit_to_dir_path = paths
+      end
+
       #XXX update is a bummer, just returns the rev num, not affected files
       #(svn command line up, also returns altered/new files - mimic that)
       # hence our inplace hack (_pre/_post update_entries)
@@ -390,7 +395,6 @@ module SvnWc
         #       #Svn::Error::FS_NO_SUCH_REVISION,
         #       #Svn::Error::WcNotDirectory,
         #       #Svn::Error::EntryNotFound => e
-        #       Exception => e
         rescue Exception => err
           raise RepoAccessError, "Update Failed: #{err.message}"
         end
@@ -432,6 +436,9 @@ module SvnWc
 
       added   = post_up_entries - @pre_up_entries
       removed = @pre_up_entries - post_up_entries
+
+      #raise "#{post_up_entries}\n#{@pre_up_entries}"
+      #raise "#{added} - #{removed}"
 
       if added.length > 0
           added.each {|e_add| @modified_entries.push "A\t#{e_add}" }
@@ -628,9 +635,18 @@ module SvnWc
         @adm = adm
         if file.nil?
           #also see walk_entries (in svn bindings) has callback
-          adm.read_entries.keys.sort.each { |ef|
-            next unless ef.length >= 1 # why this check and not file.exists?
-            _collect_get_entry_info(File.join(dir, ef))
+          adm.head_entries.keys.sort.each { |ef|
+            next unless ef.length >= 1
+            svn_entry = File.join(dir, ef)
+            # limit files returned to this (and subdir's of) dir
+            if @limit_to_dir_path
+              #raise "#{dir} :  #{svn_entry} : #{@limit_to_dir_path}"
+               next unless svn_entry == @limit_to_dir_path
+               #next unless svn_entry.include? @limit_to_dir_path
+              _collect_get_entry_info svn_entry
+            else
+              _collect_get_entry_info svn_entry
+            end
           }
         else
           _collect_get_entry_info(file)
