@@ -132,7 +132,7 @@ module SvnWc
   #
   class RepoAccess
 
-    VERSION = '0.0.3'
+    VERSION = '0.0.6'
 
     # initialization
     # three optional parameters
@@ -630,23 +630,21 @@ module SvnWc
     def list_entries(dir=self.svn_repo_working_copy, file=nil, verbose=false)
 
       @entry_list, @show, @verbose = [], true, verbose
-
+       
       Svn::Wc::AdmAccess.open(nil, dir, false, 5) do |adm|
         @adm = adm
         if file.nil?
           #also see walk_entries (in svn bindings) has callback
-          adm.head_entries.keys.sort.each { |ef|
+          adm.read_entries.keys.sort.each { |ef|
             next unless ef.length >= 1
             svn_entry = File.join(dir, ef)
-            # limit files returned to this (and subdir's of) dir
-            if @limit_to_dir_path
-              #raise "#{dir} :  #{svn_entry} : #{@limit_to_dir_path}"
-               next unless svn_entry == @limit_to_dir_path
-               #next unless svn_entry.include? @limit_to_dir_path
-              _collect_get_entry_info svn_entry
-            else
-              _collect_get_entry_info svn_entry
+            if @limit_to_dir_path # limit files returned to this (and subdir's of) dir
+              next unless svn_entry == @limit_to_dir_path
+              #raise "#{svn_entry} #{@limit_to_dir_path}"
+              #next unless svn_entry.include? @limit_to_dir_path
+              #next unless svn_entry.match @limit_to_dir_path
             end
+            _collect_get_entry_info svn_entry
           }
         else
           _collect_get_entry_info(file)
@@ -656,6 +654,7 @@ module SvnWc
       #@entry_list unless @entry_list.empty?
       @entry_list
     end
+
 
     #
     # private

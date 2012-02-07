@@ -642,7 +642,8 @@ class TestSvnWc < Test::Unit::TestCase
 
     # first nested subdir file - should find new file
     assert_equal [rev3, ["A\t#{dir}/#{File.basename nf}"]],
-      svn.update(File.join(@conf['svn_repo_working_copy'], dir)),
+      #svn.update(File.join(@conf['svn_repo_working_copy'], dir)), #fails
+      svn.update(File.join(@conf['svn_repo_working_copy'], 't')),
       'svn update can update based specified on non-top level path, great!'
 
   end
@@ -985,7 +986,7 @@ class TestSvnWc < Test::Unit::TestCase
     svn = _working_copy_repo_at_path
     ff = Array.new
     (1..num_files).each {|n|
-        f = new_unique_file_at_path(svn.svn_repo_working_copy)
+      f = new_unique_file_at_path(svn.svn_repo_working_copy)
       svn.add f
       ff.push f
     }

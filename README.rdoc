@@ -5,7 +5,7 @@ Operate on the working copy of a (remote) Subversion (svn) repository.
 
 == VERSION:
 
-Version 0.0.5
+Version 0.0.6
 
 
 == SYNOPSIS:
@@ -280,13 +280,17 @@ Author:: {David Wright}[http://www.dwright.us/] <david_v_wright@yahoo.com>
 
 == ACKNOWLEDGEMENTS:
 
-*  Much of this code was guided from reading the {SVN Ruby Bindings unit tests}[https://svn.collab.net/repos/svn/trunk/subversion/bindings/swig/ruby/test/]
+*  Much of this code was guided from reading the {SVN Ruby Bindings unit tests}[http://svn.apache.org/repos/asf/subversion/trunk/subversion/bindings/swig/ruby/]
 
 * {Doxygen Docs}[http://svn.collab.net/svn-doxygen/search.php?query=svn_wc_entry]
   Ruby          -> Svn::Wc::Entry 
   Doxygen Docs  -> svn_wc_entry
 
-* The Doxyogen Modules {docs}[http://svn.collab.net/svn-doxygen/modules.html]
+  The collab.net Docs/code seem to have moved to being hosted by Apache:
+  or can view here: (I cant seem to find the Doxyogen docs anymore)
+  {Ruby SWIG Code}[https://trac.mathweb.org/tntbase/browser/trunk/SVN/src-trunk/subversion/bindings/swig/ruby/test?rev=4&order=name]
+  or can view here:
+  {Ruby SWIG Code}[http://www.opensource.apple.com/source/subversion/subversion-16/subversion/subversion/bindings/swig/ruby/test/]
 
 * Tim Coulter did some work with the {Ruby bindings as well}[http://www.oneofthewolves.com/svn_repos/svn_repos.rb]
 
