@@ -417,11 +417,18 @@ module SvnWc
         ##puts "#{ent[:status]} | #{ent[:repo_rev]} | #{ent[:entry_name]}"
         e_name = ent[:entry_name]
         stat = ent[:status]
+
+        if @limit_to_dir_path # limit files returned to this (and subdir's of) dir
+          fle = File.join(self.svn_repo_working_copy, e_name)
+          next unless fle.include? @limit_to_dir_path
+        end
+
         @pre_up_entries.push e_name
         ## how does it handle deletes?
         #if info()[:rev] != ent[:repo_rev]
         #  puts "changed file: #{File.join(paths, ent[:entry_name])} | #{ent[:status]} "
         #end
+
         if stat == 'M' then @modified_entries.push "#{stat}\t#{e_name}" end
       end
     end
@@ -432,7 +439,13 @@ module SvnWc
     #
     def _post_update_entries #:nodoc:
       post_up_entries = Array.new
-      list_entries.each { |ent| post_up_entries.push ent[:entry_name] }
+      list_entries.each { |ent| 
+        if @limit_to_dir_path # limit files returned to this (and subdir's of) dir
+          fle = File.join(self.svn_repo_working_copy, ent[:entry_name])
+          next unless fle.include? @limit_to_dir_path
+        end
+        post_up_entries.push ent[:entry_name]
+      }
 
       added   = post_up_entries - @pre_up_entries
       removed = @pre_up_entries - post_up_entries
@@ -638,12 +651,6 @@ module SvnWc
           adm.read_entries.keys.sort.each { |ef|
             next unless ef.length >= 1
             svn_entry = File.join(dir, ef)
-            if @limit_to_dir_path # limit files returned to this (and subdir's of) dir
-              next unless svn_entry == @limit_to_dir_path
-              #raise "#{svn_entry} #{@limit_to_dir_path}"
-              #next unless svn_entry.include? @limit_to_dir_path
-              #next unless svn_entry.match @limit_to_dir_path
-            end
             _collect_get_entry_info svn_entry
           }
         else
@@ -669,6 +676,7 @@ module SvnWc
       if File.directory?(abs_path_file)
         Dir.entries(abs_path_file).each do |de|
           next if de == '..' or de == '.' or de == '.svn'
+
           status_info = _get_entry_info(File.join(abs_path_file, de))
           @entry_list.push status_info if status_info and not status_info.empty?
         end

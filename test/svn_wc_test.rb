@@ -623,7 +623,6 @@ class TestSvnWc < Test::Unit::TestCase
     # find first nested subdir file
     assert_equal \
     [(rev + 2), ["A\t#{dir}/#{File.basename file}", "A\tt/t/t", "A\tt/t"]],
-      #svn.update(File.join(@conf['svn_repo_working_copy'], dir)), # fails
       svn.update(File.join(@conf['svn_repo_working_copy'], 't')),
       'found file under first subdir path of the repo, but not the second subdir, good!'
 
@@ -633,17 +632,22 @@ class TestSvnWc < Test::Unit::TestCase
       svn.update(File.join(@conf['svn_repo_working_copy'], 'f')),
       'update can accept a path to update and only act on that path, great!'
 
-    (rev3, nf) = check_out_new_working_copy_add_commit_new_entry(dir)
+    dir3 = 't'
+    (rev3, nf, nf2) = check_out_new_working_copy_add_commit_new_entries(dir, dir3)
 
     # second nested subdir file - should not see added file
     assert_equal \
     [rev3, []], svn.update(File.join(@conf['svn_repo_working_copy'], 'f')),
       'update can act on passed path (or not act :)'
 
-    # first nested subdir file - should find new file
+    # first nested subdir file - should find 1 new file
     assert_equal [rev3, ["A\t#{dir}/#{File.basename nf}"]],
-      #svn.update(File.join(@conf['svn_repo_working_copy'], dir)), #fails
-      svn.update(File.join(@conf['svn_repo_working_copy'], 't')),
+      svn.update(File.join(@conf['svn_repo_working_copy'], dir)),
+      'svn update can update based specified on non-top level path, great!'
+
+    # first nested subdir file - should find second new file
+    assert_equal [rev3, ["A\t#{dir3}/#{File.basename nf2}"]],
+      svn.update(File.join(@conf['svn_repo_working_copy'], dir3)),
       'svn update can update based specified on non-top level path, great!'
 
   end
@@ -1031,11 +1035,24 @@ class TestSvnWc < Test::Unit::TestCase
     return rev, f
   end
 
-  def check_out_new_working_copy_add_commit_new_entry(dir)
+  def check_out_new_working_copy_add_commit_new_entries(dir, dir2)
     svn = _working_copy_repo_at_path
 
     f = new_unique_file_at_path(File.join(svn.svn_repo_working_copy, dir))
+    f2 = new_unique_file_at_path(File.join(svn.svn_repo_working_copy, dir2))
     #p svn
+
+    svn.add f
+    svn.add f2
+    rev = svn.commit f
+    rev = svn.commit f2
+    raise 'file not created' unless File.exists?(f) and File.exists?(f2)
+    raise 'cant get rev' unless rev
+    return rev, f, f2
+  end
+
+  def touch_file_add_to_svn(svn, dir)
+    f = new_unique_file_at_path dir
 
     svn.add f
     rev = svn.commit f
@@ -1043,7 +1060,6 @@ class TestSvnWc < Test::Unit::TestCase
     raise 'cant get rev' unless rev
     return rev, f
   end
-
 
   def modify_file_and_commit_into_another_working_repo
     svn = _working_copy_repo_at_path
