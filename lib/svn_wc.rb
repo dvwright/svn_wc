@@ -759,7 +759,7 @@ module SvnWc
                      copyfrom_rev copyfrom_url conflict_wrk 
                      conflict_new has_wc_info repos_UUID
                      checksum prop_time text_time prejfile
-                     schedule taguri lock rev dup url URL
+                     schedule lock rev dup url URL
                     ) # changelist depth size tree_conflict working_size
 
       begin
